@@ -15,14 +15,14 @@ For example, all human languages are "hierarchical"
 
 All human languages are **hierarchical**, not just linear.  
 
-- **Linear view:** Words are simply a chain, one after another.  
+**Linear view:** Words are simply a chain, one after another.  
   Example:  
   ```
   The cat sat on the mat
   ```
   In a linear view, each word only relates to its neighbors.
 
-- **Hierarchical view:** Words group into phrases, which group into larger phrases, like nested boxes.  
+**Hierarchical view:** Words group into phrases, which group into larger phrases, like nested boxes.  
   Example:  
   ```
   [The cat] [sat [on [the mat]]]
