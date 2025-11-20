@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=retraining_2011
-#SBATCH --error=logs/retraining_2011-%j.out
-#SBATCH --output=logs/retraining_2011-%j.err
+#SBATCH --error=logs/retraining_2011-%j.err
+#SBATCH --output=logs/retraining_2011-%j.out
 #SBATCH --cpus-per-task=5
 #SBATCH --partition=gpu
 #SBATCH --export=ALL
@@ -13,8 +13,11 @@ languages=("english" "hebrew")
 method="no-perturb"
 LOG_DIR="./gpt2_logs"
 
+mkdir -p "$LOG_DIR"
+
 for language in "${languages[@]}"; do
     EXPERIMENT_IDENTIFIER="${language}-${method}"
-    exec > ${LOG_DIR}/retraining-il-${EXPERIMENT_IDENTIFIER}.out 2> ${LOG_DIR}/retraining-il-${EXPERIMENT_IDENTIFIER}.err
-    python gpt2_retraining.py --language "$language" --method "$method"
+    python gpt2_retraining.py --language "$language" --method "$method" \
+        > "${LOG_DIR}/retraining-il-${EXPERIMENT_IDENTIFIER}.out" \
+        2> "${LOG_DIR}/retraining-il-${EXPERIMENT_IDENTIFIER}.err"
 done
