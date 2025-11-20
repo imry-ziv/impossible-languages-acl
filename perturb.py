@@ -52,7 +52,7 @@ _LANGUAGE_TO_LANGUAGE_CODE = {
 
 
 SEED = 81
-DATA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
+DATA_PATH = "./data"
 
 # Global vars for HF models.
 _HEBREW_MODEL = None
@@ -262,7 +262,7 @@ def _perturb_sentence(sentence: str, method: str, nlp: spacy.Language, language:
     return perturbed, change
 
 def _load_model(language:str):
-    assert language in ('english','italian','russian', 'french', 'german', 'greek', 'spanish', 'danish', 'japanese', 'finnish'), f"{language} not supported with POS tagging"
+    assert language in ('english','italian','russian', 'french', 'german', 'greek', 'spanish', 'danish', 'japanese', 'finnish', 'turkish', 'korean'), f"{language} not supported with POS tagging"
     if language == 'english':
         name = "en_core_web_sm"
     elif language == 'italian':
@@ -283,6 +283,10 @@ def _load_model(language:str):
         name = "de_core_news_sm"
     elif language == 'finnish':
         name = "fi_core_news_md"
+    elif language == 'turkish':
+        name = "tr_core_web_md"
+    elif language == 'korean':
+        name = "ko_core_news_sm"
     try:
         nlp = spacy.load(name)
     except:

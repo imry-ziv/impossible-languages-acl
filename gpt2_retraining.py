@@ -16,18 +16,18 @@ import torch.nn as nn
 from loguru import logger
 from collections import defaultdict
 from typing import Optional
-from perturb import DATA_PATH
+DATA_PATH = "./data"
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 
 from modified_external_sources.lm_povstim_with_childes.utils_lm_povstim import (
-    batchify,
-    batchify_finetuning,
-    get_batch,
-    repackage_hidden,
-)
-from utils import get_free_gpu, kwargs_to_id
+     batchify,
+     batchify_finetuning,
+     get_batch,
+     repackage_hidden,
+ )
+#from utils import get_free_gpu, kwargs_to_id
 
 TRANSFORMER_DEFAULT_CONTEXT_SIZE = 1024
 PARENT_PATH = pathlib.Path.cwd().parent
@@ -190,6 +190,58 @@ class Corpus(object):
         logger.info("Done tokenizing.")
 
 
+def downsample_for_epochs(
+    token_tensor,
+    num_epochs,
+    training_steps,
+    chunk_size,
+    batch_size,
+    seed=42
+):
+    """
+    token_tensor: 1D tensor of token IDs, shape (N,)
+    num_epochs: desired number of epochs (e.g., 10)
+    training_steps: total number of training steps you will run (e.g., 3000)
+    chunk_size: number of tokens per example (e.g., 256)
+    batch_size: examples per training step (e.g., 512)
+    """
+
+    torch.manual_seed(seed)
+
+    # tokens consumed per training step
+    tokens_per_step = batch_size * chunk_size
+
+    # total tokens needed for training
+    total_tokens_needed = training_steps * tokens_per_step
+
+    # tokens needed per epoch (if total equals num_epochs epochs)
+    tokens_per_epoch = total_tokens_needed // num_epochs
+
+    # that is the target downsample length
+    target_length = int(tokens_per_epoch)
+
+    original_length = token_tensor.shape[0]
+
+    if target_length > original_length:
+        raise ValueError(
+            f"Dataset too small. Need {target_length} tokens but only have {original_length}."
+        )
+
+    # downsample the dataset by random selection of a contiguous slice
+    start = torch.randint(0, original_length - target_length, (1,))
+    target_length = 150000 # Just trying out
+    downsampled = token_tensor[start:start + target_length]
+
+    return downsampled, {
+        "original_length": original_length,
+        "target_length": target_length,
+        "tokens_per_step": tokens_per_step,
+        "total_tokens_needed": total_tokens_needed,
+        "tokens_per_epoch": tokens_per_epoch,
+        "achieved_epochs": total_tokens_needed / target_length
+    }
+
+
 def _get_file_hash(path):
     with open(path, "rb") as f:
         return hashlib.sha1(f.read()).hexdigest()[:8]
@@ -265,7 +317,7 @@ def truncate_validation(val_data):
         val_data = val_data[:VALIDATION_SET_SIZE_TOKENS]  # Slice only along the first dimension
     return val_data
 
-def load_and_tokenize_datasets(base_dataset_name, seed, cuda, gpu_id):
+def load_and_tokenize_datasets(base_dataset_name, seed, cuda, gpu_id, do_downsample):
     # base_dataset_name includes dataset.
     # Set the random seed manually for reproducibility.
     if torch.cuda.is_available():
@@ -290,7 +342,16 @@ def load_and_tokenize_datasets(base_dataset_name, seed, cuda, gpu_id):
         datasets_dir=pathlib.Path(DATA_PATH),
         base_dataset=pathlib.Path(base_dataset_name,),
     )
+
+    if do_downsample:
+        corpus.train, data = downsample_for_epochs(corpus.train,
+                                             num_epochs=10,
+                                             training_steps=3000,
+                                             chunk_size=256,
+                                             batch_size=512)
+
     logger.debug("Created Corpus object.")
+    logger.debug(f"Here's the data: {data}")
     logger.info("( %.2f )" % (time.time() - start))
     ntokens_by_dict = len(corpus.dictionary)
     ntokens_by_tokenizer = corpus.tokenizer.vocab_size
@@ -333,24 +394,43 @@ def configure_gpt2_model(
     return model
 
 
-def init_trainer_object(model, train_dataset, test_dataset, val_dataset, corpus):
-    # ==== Training Arguments ====
-    training_args = TrainingArguments(
-        output_dir=OUTPUT_DIR,
-        evaluation_strategy="steps",
-        eval_steps=CHECKPOINT_INTERVAL,
-        #save_steps=CHECKPOINT_INTERVAL,
-        #save_total_limit=20,  # Keeps only the last 20 checkpoints
-        save_strategy="no",  # Prevents saving the model and tokenizer
-        logging_steps=100,
-        learning_rate=5e-4,
-        weight_decay=0.01,
-        per_device_train_batch_size=TRAIN_BATCH_SIZE,
-        per_device_eval_batch_size=EVAL_BATCH_SIZE,
-        num_train_epochs=1,  # Since we use step-based stopping, 1 epoch is fine
-        max_steps=MAX_TRAIN_STEPS,  # Stop training after this many steps
-        logging_dir="./logs",
-    )
+def init_trainer_object(model, train_dataset, test_dataset, val_dataset, corpus, is_downsampled):
+    if is_downsampled:
+        log_dir = "./logs_downsampled"
+        # Arguments for Nov '25 training by Kallini.
+        training_args = TrainingArguments(
+            output_dir=OUTPUT_DIR,
+            evaluation_strategy="steps",
+            eval_steps=CHECKPOINT_INTERVAL,
+            save_strategy="no",  # Prevents saving the model and tokenizer
+            logging_steps=100,
+            learning_rate=6e-4,
+            per_device_train_batch_size=TRAIN_BATCH_SIZE,
+            per_device_eval_batch_size=EVAL_BATCH_SIZE,
+            num_train_epochs=10,
+            max_steps=MAX_TRAIN_STEPS,  # Stop training after this many steps
+            warmup_steps=300, # Added!
+            logging_dir=log_dir,
+        )
+
+    else:
+        log_dir = "./logs"
+        epoch_num = 1
+        training_args = TrainingArguments(
+            output_dir=OUTPUT_DIR,
+            evaluation_strategy="steps",
+            eval_steps=CHECKPOINT_INTERVAL,
+            save_strategy="no",  # Prevents saving the model and tokenizer
+            logging_steps=100,
+            learning_rate=5e-4,
+            weight_decay=0.01,
+            per_device_train_batch_size=TRAIN_BATCH_SIZE,
+            per_device_eval_batch_size=EVAL_BATCH_SIZE,
+            num_train_epochs=epoch_num,
+            max_steps=MAX_TRAIN_STEPS,  # Stop training after this many steps
+            logging_dir=log_dir,
+        )
+
 
     # ==== Train the Model ====
 
@@ -429,9 +509,13 @@ if __name__ == '__main__':
         default=30,
     )
 
+    arg_parser.add_argument(
+        "--do_downsample",
+        action="store_true",  # <-- correct way for a boolean flag
+        help="Whether to downsample the dataset",
+    )
 
     args = arg_parser.parse_args()
-
     base_dataset_name = f"multilang/{args.language}"
     if not args.method == 'no-perturb':
         base_dataset_name = f"{base_dataset_name}/{args.method}"
@@ -440,11 +524,14 @@ if __name__ == '__main__':
 
     # Still keep Corpus object. train, test and val are batchified (10 by default) - validation is truncated by token num
     logger.debug("Tokenizing and loading datasets.")
+
+
     train_dataset, test_dataset, val_dataset, corpus_object = load_and_tokenize_datasets(
         base_dataset_name=base_dataset_name,
         seed=args.seed,
         cuda=cuda,
         gpu_id=None,
+        do_downsample=args.do_downsample
     )
 
     model = configure_gpt2_model(
@@ -462,7 +549,8 @@ if __name__ == '__main__':
         train_dataset=train_dataset,
         test_dataset=test_dataset,
         val_dataset=val_dataset,
-        corpus=corpus_object
+        corpus=corpus_object,
+        is_downsampled=args.do_downsample,
     )
     train_batch_size = trainer.get_train_dataloader().batch_size
     logger.debug(f"Batch size of trainer is {train_batch_size}")

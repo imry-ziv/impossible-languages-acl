@@ -11,17 +11,21 @@ import requests
 from tqdm import tqdm
 from pathlib import Path
 import argparse
+from loguru import logger
+import treetaggerwrapper
 
-TREETAGGER_PATH = "../jlm-llm/data/treetagger"
-TEMP_OUTPUT_PATH = "../jlm-llm/data/treetagger/temp"
+TREETAGGER_PATH = "./data/treetagger"
+TEMP_OUTPUT_PATH = "../data/treetagger/temp"
 LANGUAGES_TO_DUMP_FILES = {
     'french': ['https://dumps.wikimedia.org/frwiki/20250101/frwiki-20250101-pages-articles-multistream1.xml-p1p306134.bz2'],
     'german': ['https://dumps.wikimedia.org/dewiki/20250101/dewiki-20250101-pages-articles-multistream2.xml-p297013p1262093.bz2'],
     'spanish': ['https://dumps.wikimedia.org/eswiki/20250101/eswiki-20250101-pages-articles-multistream3.xml-p693324p1897740.bz2'],
     'danish': ['https://dumps.wikimedia.org/dawiki/20250101/dawiki-20250101-pages-articles-multistream.xml.bz2', 'https://dumps.wikimedia.org/dawiki/20250101/dawiki-20250101-pages-meta-current.xml.bz2'],
-    'japanese': ['https://dumps.wikimedia.org/jawiki/20250101/jawiki-20250101-pages-articles-multistream4.xml-p902408p1721646.bz2', 'https://dumps.wikimedia.org/jawiki/20250101/jawiki-20250101-pages-articles-multistream1.xml-p1p114794.bz2'],
+    'japanese': ['https://dumps.wikimedia.org/jawiki/20250801/jawiki-20250801-pages-articles-multistream1.xml-p1p114794.bz2', 'https://dumps.wikimedia.org/jawiki/20250801/ jawiki-20250801-pages-articles-multistream3.xml-p390429p902407.bz2'],
     'greek': ['https://dumps.wikimedia.org/elwiki/20250101/elwiki-20250101-pages-articles-multistream.xml.bz2'],
-    'finnish': ['https://dumps.wikimedia.org/fiwiki/20250101/fiwiki-20250101-pages-articles-multistream.xml.bz2']
+    'finnish': ['https://dumps.wikimedia.org/fiwiki/20250101/fiwiki-20250101-pages-articles-multistream.xml.bz2'],
+    'turkish': ['https://dumps.wikimedia.org/trwiki/20250701/trwiki-20250701-pages-articles-multistream.xml.bz2'],
+    'korean': ['https://https://dumps.wikimedia.org/kowiki/20250801/kowiki-20250801-pages-articles-multistream.xml.bz2'],
 }
 
 def run_wikiextractor(filepath, count=None, additional_args=None):
@@ -79,9 +83,12 @@ def download_dumps_for_languages(languages: List[str]):
     for language in languages:
         for url in LANGUAGES_TO_DUMP_FILES[language]:
             output_dir = f"{dumps_path}/{language}"
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             filename = extract_base_name(url)
             file_path = f"{output_dir}/{filename}"
-            os.makedirs(output_dir, exist_ok=True)
+            if os.path.exists(file_path):
+                continue
             response = requests.get(url, stream=True)
             response.raise_for_status()
             total_size = int(response.headers.get('content-length', 0))
@@ -146,8 +153,8 @@ def process_sentences_and_create_vocab(all_sentences, token_limit=90_000_000, vo
         if token_count >= token_limit:
             is_too_short = False
             break
-    if is_too_short == True:
-        raise Exception("Not enough tokens!")
+    # if is_too_short == True:
+    #     raise Exception("Not enough tokens!")
 
 
     # Step 3: Split into train, validation, and test sets
@@ -155,7 +162,7 @@ def process_sentences_and_create_vocab(all_sentences, token_limit=90_000_000, vo
     val_data, test_data = train_test_split(temp_data, test_size=0.5, random_state=42)
     all_tokens = [token for sentence in subset_of_sentences for token in sentence.split()]
     token_freq = Counter(all_tokens)
-    vocab = {word: freq for word, freq in token_freq.most_common(vocab_size)}
+    vocab = {word: freq for word, freq in token_freq.most_common(min(vocab_size,token_count))}
     if '<unk>' not in vocab.keys():
         vocab['<unk>'] = 100 # Arbitrary
     def replace_with_unk(sentence):
@@ -267,6 +274,7 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
     if args.download_dumps:
         dumpfile_paths = download_dumps_for_languages([args.language])
+        #dumpfile_paths = ['./data/wikidumps/japanese/jawiki-20250801-pages-articles-multistream1.xml-p1p114794.bz2']
         cnt = 1
         for filepath in dumpfile_paths:
             run_wikiextractor(filepath, cnt)
