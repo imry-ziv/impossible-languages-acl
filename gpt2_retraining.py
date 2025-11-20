@@ -192,11 +192,12 @@ class Corpus(object):
 
 def downsample_for_epochs(
     token_tensor,
+    train_or_valid,
     num_epochs,
     training_steps,
     chunk_size,
     batch_size,
-    seed=42
+    seed=42,
 ):
     """
     token_tensor: 1D tensor of token IDs, shape (N,)
@@ -206,40 +207,35 @@ def downsample_for_epochs(
     batch_size: examples per training step (e.g., 512)
     """
 
-    torch.manual_seed(seed)
+    #torch.manual_seed(seed)
 
     # tokens consumed per training step
-    tokens_per_step = batch_size * chunk_size
+    #tokens_per_step = batch_size * chunk_size
 
     # total tokens needed for training
-    total_tokens_needed = training_steps * tokens_per_step
+    #total_tokens_needed = training_steps * tokens_per_step
 
     # tokens needed per epoch (if total equals num_epochs epochs)
-    tokens_per_epoch = total_tokens_needed // num_epochs
+    #tokens_per_epoch = total_tokens_needed // num_epochs
 
     # that is the target downsample length
-    target_length = int(tokens_per_epoch)
+    #target_length = int(tokens_per_epoch)
 
-    original_length = token_tensor.shape[0]
+    # original_length = token_tensor.shape[0]
 
-    if target_length > original_length:
-        raise ValueError(
-            f"Dataset too small. Need {target_length} tokens but only have {original_length}."
-        )
+    # if target_length > original_length:
+    #     raise ValueError(
+    #         f"Dataset too small. Need {target_length} tokens but only have {original_length}."
+    #     )
 
-    # downsample the dataset by random selection of a contiguous slice
-    start = torch.randint(0, original_length - target_length, (1,))
-    target_length = 150000 # Just trying out
-    downsampled = token_tensor[start:start + target_length]
+    # downsample the dataset by intial contiguous slice
+    if train_or_valid == 'train': # Plaster.
+        target_length = 150000 # Just trying out
+    else:
+        target_length = 30000
+    downsampled = token_tensor[:target_length]
 
-    return downsampled, {
-        "original_length": original_length,
-        "target_length": target_length,
-        "tokens_per_step": tokens_per_step,
-        "total_tokens_needed": total_tokens_needed,
-        "tokens_per_epoch": tokens_per_epoch,
-        "achieved_epochs": total_tokens_needed / target_length
-    }
+    return downsampled
 
 
 def _get_file_hash(path):
@@ -344,14 +340,20 @@ def load_and_tokenize_datasets(base_dataset_name, seed, cuda, gpu_id, do_downsam
     )
 
     if do_downsample:
-        corpus.train, data = downsample_for_epochs(corpus.train,
+        corpus.train = downsample_for_epochs(corpus.train,
+                                            'train',
                                              num_epochs=10,
                                              training_steps=3000,
                                              chunk_size=256,
                                              batch_size=512)
+        corpus.valid = downsample_for_epochs(corpus.valid,
+                                                   'valid',
+                                                   num_epochs=10,
+                                                   training_steps=3000,
+                                                   chunk_size=256,
+                                                   batch_size=512)
 
     logger.debug("Created Corpus object.")
-    logger.debug(f"Here's the data: {data}")
     logger.info("( %.2f )" % (time.time() - start))
     ntokens_by_dict = len(corpus.dictionary)
     ntokens_by_tokenizer = corpus.tokenizer.vocab_size
