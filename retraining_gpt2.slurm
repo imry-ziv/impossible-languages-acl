@@ -24,5 +24,5 @@ for language in "${languages[@]}"; do
     EXPERIMENT_IDENTIFIER="${language}-${method}"
     exec > ${LOG_DIR}/retraining-il-${EXPERIMENT_IDENTIFIER}.out 2> ${LOG_DIR}/retraining-il-${EXPERIMENT_IDENTIFIER}.err
 
-    python gpt2_retraining.py --language "$language" --method "$method"
+    python gpt2_retraining.py --language "$language" --method "$method --do_downsample"
 done

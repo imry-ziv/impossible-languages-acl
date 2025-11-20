@@ -27,7 +27,7 @@ from modified_external_sources.lm_povstim_with_childes.utils_lm_povstim import (
      get_batch,
      repackage_hidden,
  )
-#from utils import get_free_gpu, kwargs_to_id
+from utils import get_free_gpu, kwargs_to_id
 
 TRANSFORMER_DEFAULT_CONTEXT_SIZE = 1024
 PARENT_PATH = pathlib.Path.cwd().parent
