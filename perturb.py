@@ -34,6 +34,7 @@ _LANGUAGE_MARKERS = {
     'de': 'V',
     'es': 'v',
     'fi': 'v',
+    'tr': 'v',
 }
 
 _LANGUAGE_TO_LANGUAGE_CODE = {
@@ -48,6 +49,7 @@ _LANGUAGE_TO_LANGUAGE_CODE = {
     'german': 'de',
     'finnish': 'fi',
     'danish': 'da',
+    'turkish': 'tr',
 }
 
 
@@ -283,14 +285,15 @@ def _load_model(language:str):
         name = "de_core_news_sm"
     elif language == 'finnish':
         name = "fi_core_news_md"
-    elif language == 'turkish':
-        name = "tr_core_web_md"
     elif language == 'korean':
         name = "ko_core_news_sm"
+    elif language == 'turkish':
+        name = "tr_core_news_lg"
+
     try:
         nlp = spacy.load(name)
     except:
-        download(name)
+        #download(name)
         nlp = spacy.load(name)
     language_code = nlp.lang
     return nlp, language_code
