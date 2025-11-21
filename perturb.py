@@ -72,7 +72,7 @@ _ITALIAN_DETERMINERS_TO_EQUIVALENTS = {
     'un\'': 'ru\'',
 }
 
-_SET_TYPES = ('train')
+_SET_TYPES = ('train', 'test', 'valid')
 
 _IMPLEMENTED_PERTURBATIONS = (
     'count-based-indefinite-article',
