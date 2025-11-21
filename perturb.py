@@ -6,7 +6,6 @@ import spacy
 import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModel
-
 import lib
 from loguru import logger
 import argparse
@@ -35,6 +34,7 @@ _LANGUAGE_MARKERS = {
     'es': 'v',
     'fi': 'v',
     'tr': 'v',
+    'ko': chr(0xD7A3), # not a word, used as pedagogical term
 }
 
 _LANGUAGE_TO_LANGUAGE_CODE = {
@@ -146,7 +146,7 @@ def perturb_dataset(dataset: list, method: str, set_type: str, language: str):
     if 'linear' in method or 'hop' in method:
         if language != 'hebrew':
             nlp, language_code = _load_model(language)
-        else: # Edge case for Hebrew where we use huggingface model.
+        elif language == 'hebrew': # Edge case for Hebrew where we use huggingface model.
             load_hebrew_hf_model()
             nlp = None
             language_code = _LANGUAGE_TO_LANGUAGE_CODE[language]

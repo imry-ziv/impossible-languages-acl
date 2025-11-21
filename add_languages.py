@@ -3,6 +3,7 @@
 from sklearn.model_selection import train_test_split
 from collections import Counter
 import random
+from perturb import _LANGUAGE_TO_LANGUAGE_CODE
 import sys
 import subprocess
 from typing import List
@@ -126,7 +127,11 @@ def parse_dumps(language: str):
             output_file = Path(TEMP_OUTPUT_PATH) / (file_name + ".tagged")
 
             # Tokenize and filter using your existing function
-            filtered_data, token_count = tokenize_and_filter_with_treetagger(language, file_path)
+            if language == 'japanese' or language == 'korean':
+                filtered_data, token_count = tokenize_and_filter_without_treetagger(language, file_path)
+            else:
+                filtered_data, token_count = tokenize_and_filter_with_treetagger(language, file_path)
+
             total_token_count += token_count
             logger.debug(f"Tokenized file {file_path}, total tokens: {total_token_count}")
             all_sentences.extend(filtered_data)
@@ -138,7 +143,7 @@ def parse_dumps(language: str):
     logger.debug(f"Note: Iterations finished with total token count only at {total_token_count}.")
     return all_sentences
 
-def process_sentences_and_create_vocab(all_sentences, token_limit=90_000_000, vocab_size=50000):
+def process_sentences_and_create_vocab(all_sentences, language:str, token_limit=90_000_000, vocab_size=50000):
     # Step 1: Shuffle the sentences
     random.shuffle(all_sentences)
 
@@ -162,15 +167,22 @@ def process_sentences_and_create_vocab(all_sentences, token_limit=90_000_000, vo
     val_data, test_data = train_test_split(temp_data, test_size=0.5, random_state=42)
     all_tokens = [token for sentence in subset_of_sentences for token in sentence.split()]
     token_freq = Counter(all_tokens)
-    vocab = {word: freq for word, freq in token_freq.most_common(min(vocab_size,token_count))}
+    if language == 'japanese':
+        token_count = 1000 # Factor of 5
+    elif language == 'korean': # need token count also for korean, b/c many <unk>s
+        token_count = 200000
+
+    vocab = {word: freq for word, freq in token_freq.most_common(token_count)}
+
     if '<unk>' not in vocab.keys():
         vocab['<unk>'] = 100 # Arbitrary
-    def replace_with_unk(sentence):
+    def replace_with_unk(sentence, language):
         return [word if word in vocab else '<unk>' for word in sentence.split()]
 
-    train_data = [' '.join(replace_with_unk(sentence)) for sentence in train_data]
-    val_data = [' '.join(replace_with_unk(sentence)) for sentence in val_data]
-    test_data = [' '.join(replace_with_unk(sentence)) for sentence in test_data]
+
+    train_data = [' '.join(replace_with_unk(sentence, language)) for sentence in train_data]
+    val_data = [' '.join(replace_with_unk(sentence, language)) for sentence in val_data]
+    test_data = [' '.join(replace_with_unk(sentence, language)) for sentence in test_data]
 
     # Return processed data and vocabulary
     return {
@@ -180,18 +192,55 @@ def process_sentences_and_create_vocab(all_sentences, token_limit=90_000_000, vo
         'vocab': vocab,
     }
 
+def tokenize_and_filter_without_treetagger(language, input_file):
+    total_token_count = 0
+    valid_sentences = []
+    with open(input_file, 'r', encoding='utf-8') as infile:
+        lines = infile.readlines()  # Read the entire content of the file
+
+    for line in lines:
+        if line_is_bad(line, language):
+            continue
+        if language == 'japanese':
+            total_words = len(line)
+        else:
+            total_words = len(line.split())
+
+        if total_words == 0:
+            continue
+        if language == 'japanese':
+            split_sentence = list(line)
+            split_sentence.append('<eos>')
+            valid_sentences.append(" ".join(split_sentence))
+        else:
+            split_sentence = line.split()
+            split_sentence.append('<eos>')
+            valid_sentences.append(" ".join(split_sentence))
+        total_token_count += total_words
+        # Split the sentence around '.', keep the '.', and add <eos>
+        #split_sentences = [s.strip() + ' .' for s in sentence.split('.') if s.strip()]
+        # for split_sentence in split_sentences:
+        #     if language == 'japanese':
+        #         split_sentence = " ".join(split_sentence)
+        #     valid_sentences.append(split_sentence + ' <eos>')
+
+        # Update total token count
+
+    return valid_sentences, total_token_count
+
+
 
 def tokenize_and_filter_with_treetagger(language, input_file):
     total_token_count = 0
     valid_sentences = []
     lang = language[:2]
-    tagger = treetaggerwrapper.TreeTagger(TAGLANG='fr', TAGDIR=TREETAGGER_PATH)
+    tagger = treetaggerwrapper.TreeTagger(TAGLANG='fr', TAGDIR=TREETAGGER_PATH) #'fr' as placeholder
 
     with open(input_file, 'r', encoding='utf-8') as infile:
         lines = infile.readlines()  # Read the entire content of the file
 
     for line in lines:
-        if line_is_bad(line):  # Skip lines that are short, headers, etc.
+        if line_is_bad(line, language):  # Skip lines that are short, headers, etc.
             continue
 
         # Use TreeTagger to tag the text
@@ -226,14 +275,20 @@ def tokenize_and_filter_with_treetagger(language, input_file):
     return valid_sentences, total_token_count
 
 
-def line_is_bad(line:str):
+def line_is_bad(line:str, language:str):
     '''
     Filter out lines that are single words, only \n-s, too short, or header lines.
     '''
-    is_bad = False
-    if line == '\n' or len(line.split()) <= 4 or line[0] == '<':
-        is_bad = True
-    return is_bad
+    if language != 'japanese':
+        is_bad = False
+        if line == '\n' or len(line.split()) <= 4 or line[0] == '<':
+            is_bad = True
+        return is_bad
+    else: # Japanese edge case
+        is_bad = False
+        if line == '\n' or len(line) < 10 or line[0] == '<':
+            is_bad = True
+        return is_bad
 
 def save_to_file(data, file_path):
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -280,5 +335,5 @@ if __name__ == '__main__':
             run_wikiextractor(filepath, cnt)
             cnt += 1
     all_sentences = parse_dumps(args.language)
-    split_datasets_and_vocab = process_sentences_and_create_vocab(all_sentences)
+    split_datasets_and_vocab = process_sentences_and_create_vocab(all_sentences, args.language)
     write_to_txt_files(split_datasets_and_vocab, path=f'./data/multilang/{args.language}')
