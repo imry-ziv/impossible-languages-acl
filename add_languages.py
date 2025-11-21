@@ -25,7 +25,7 @@ LANGUAGES_TO_DUMP_FILES = {
     'greek': ['https://dumps.wikimedia.org/elwiki/20250101/elwiki-20250101-pages-articles-multistream.xml.bz2'],
     'finnish': ['https://dumps.wikimedia.org/fiwiki/20250101/fiwiki-20250101-pages-articles-multistream.xml.bz2'],
     'turkish': ['https://dumps.wikimedia.org/trwiki/20250701/trwiki-20250701-pages-articles-multistream.xml.bz2'],
-    'korean': ['https://https://dumps.wikimedia.org/kowiki/20250801/kowiki-20250801-pages-articles-multistream.xml.bz2'],
+    'korean': ['https://dumps.wikimedia.org/kowiki/20250801/kowiki-20250801-pages-articles-multistream.xml.bz2'],
 }
 
 def run_wikiextractor(filepath, count=None, additional_args=None):
