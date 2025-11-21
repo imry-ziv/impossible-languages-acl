@@ -416,7 +416,7 @@ def init_trainer_object(model, train_dataset, test_dataset, val_dataset, corpus,
         )
 
     else:
-        log_dir = "./logs"
+        log_dir = "./logs_downsampled"
         epoch_num = 1
         training_args = TrainingArguments(
             output_dir=OUTPUT_DIR,
@@ -424,12 +424,12 @@ def init_trainer_object(model, train_dataset, test_dataset, val_dataset, corpus,
             eval_steps=CHECKPOINT_INTERVAL,
             save_strategy="no",  # Prevents saving the model and tokenizer
             logging_steps=100,
-            learning_rate=5e-4,
-            weight_decay=0.01,
+            learning_rate=6e-4,
             per_device_train_batch_size=TRAIN_BATCH_SIZE,
             per_device_eval_batch_size=EVAL_BATCH_SIZE,
-            num_train_epochs=epoch_num,
+            num_train_epochs=10,
             max_steps=MAX_TRAIN_STEPS,  # Stop training after this many steps
+            warmup_steps=300,  # Added!
             logging_dir=log_dir,
         )
 
