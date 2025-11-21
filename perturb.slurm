@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 #SBATCH --job-name=perturb-cpu-2111
 #SBATCH --output=/scratch2/nlan/impossible-languages-acl/logs_downsampled/perturb-cpu-2111-%j.output
 #SBATCH --error=/scratch2/nlan/impossible-languages-acl/logs_downsampled/perturb-cpu-2111-%j.err
