@@ -50,6 +50,7 @@ _LANGUAGE_TO_LANGUAGE_CODE = {
     'finnish': 'fi',
     'danish': 'da',
     'turkish': 'tr',
+    'korean': 'ko',
 }
 
 
