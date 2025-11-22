@@ -758,7 +758,11 @@ def process_set_type(set_type, language, method):
     logger.debug(f'Creating {set_type} dataset')
     #ds = load_dataset(language, set_type, method)
     language_path = os.path.join(DATA_PATH, 'multilang', language)
-    dataset_path = os.path.join(language_path, f'{set_type}.txt.original')
+    if method == 'token-hop':
+        dataset_path = os.path.join(language_path, "no-hop", f"{set_type}.txt.original")
+    else:
+        dataset_path = os.path.join(language_path, f'{set_type}.txt.original')
+
     perturbed_dataset_path = perturb_dataset(dataset_path, method, set_type=set_type, language=language)
     logger.debug(f'Wrote perturbed dataset for {set_type} to path {dataset_path}.')
 
