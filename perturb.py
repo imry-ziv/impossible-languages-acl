@@ -101,6 +101,7 @@ _IMPLEMENTED_PERTURBATIONS = (
 def load_dataset(language: str, set_type: str, method: str):
     """
     Loads and returns set_type (='train', 'test' or 'valid') dataset for specified language as list of strings.
+    2211 fix: doesn't load, just returns correct path
     """
     language_path = os.path.join(DATA_PATH, 'multilang', language)
     if method == 'token-hop':
@@ -135,12 +136,12 @@ def load_hebrew_hf_model():
         _HEBREW_MODEL = _HEBREW_MODEL.to(device)
         _HEBREW_MODEL.eval()
 
-def perturb_dataset(dataset: list, method: str, set_type: str, language: str):
+def perturb_dataset(dataset_path: str, method: str, set_type: str, language: str):
     """
-    Given dataset, returns perturbed version of it - list of sentence strings.
+    Given dataset **path**, returns perturbed version of it - list of sentence strings.
     Insert required method as string: ...
     """
-    dataset = list(dataset)
+    #dataset = list(dataset)
     change_counter = 0
     nlp = None
 
@@ -151,30 +152,30 @@ def perturb_dataset(dataset: list, method: str, set_type: str, language: str):
             load_hebrew_hf_model()
             nlp = None
             language_code = _LANGUAGE_TO_LANGUAGE_CODE[language]
-
-    if language == 'hebrew' and method == 'no-hop': # Batchify.
-        dataset = _process_in_batches_no_hop(dataset, batch_size=32)
-    else:
-        for i in tqdm(range(len(dataset)), desc=f'Processing {set_type}'):
-            sentence = dataset[i]
-            sentence_no_eos = sentence.rstrip("<eos>")
-            perturbed_sentence, change = _perturb_sentence(sentence_no_eos, method, nlp, language)
-            if change:
-                change_counter += 1
-            dataset[i] = perturbed_sentence
-        change_ratio = change_counter / len(dataset) * 100
-        logger.debug(f'There were {change_counter} changes, overall {change_ratio} percent.')
-
     method_path = os.path.join(DATA_PATH, 'multilang', language, method)
     print(f"method_path: {method_path}")
     print(f"set_type: {set_type}")
     if not os.path.exists(method_path):
         os.mkdir(method_path)
-    with open(os.path.join(method_path, f'{set_type}.txt.original'), "w", encoding='utf-8') as file:
-        for item in dataset:
-            file.write("%s\n" % item)
+    output_path = os.path.join(method_path, f'{set_type}.txt.original')
+    #if language == 'hebrew' and method == 'no-hop': # Batchify.
+    #    dataset = _process_in_batches_no_hop(dataset, batch_size=32)
+    # count lines
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        total_lines_estimate = sum(1 for _ in f)
+    total_lines = 0
+    with open(dataset_path, 'r', encoding='utf-8') as fin, \
+        open(output_path, 'w', encoding='utf-8') as fout:
+        for sentence in tqdm(fin, total=total_lines_estimate, desc=f"Perturbing {set_type} for {method} for {language}"):
+            total_lines += 1
+            sentence_no_eos = sentence.rstrip("<eos>")
+            perturbed_sentence, change = _perturb_sentence(sentence_no_eos, method, nlp, language)
+            if change:
+                change_counter += 1
+            fout.write(perturbed_sentence + "\n")
+        change_ratio = change_counter / total_lines * 100
+        logger.debug(f'There were {change_counter} changes, overall {change_ratio} percent.')
 
-    method_path = os.path.join(DATA_PATH, 'multilang', language, method)
     return method_path
 
 def _process_in_batches_no_hop(dataset, batch_size):
@@ -755,8 +756,10 @@ def process_set_type(set_type, language, method):
     Function to process a single set_type with the given method and language.
     """
     logger.debug(f'Creating {set_type} dataset')
-    ds = load_dataset(language, set_type, method)
-    dataset_path = perturb_dataset(ds, method, set_type=set_type, language=language)
+    #ds = load_dataset(language, set_type, method)
+    language_path = os.path.join(DATA_PATH, 'multilang', language)
+    dataset_path = os.path.join(language_path, f'{set_type}.txt.original')
+    perturbed_dataset_path = perturb_dataset(dataset_path, method, set_type=set_type, language=language)
     logger.debug(f'Wrote perturbed dataset for {set_type} to path {dataset_path}.')
 
 
