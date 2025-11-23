@@ -10,6 +10,7 @@ import lib
 from loguru import logger
 import argparse
 import random
+import nlpturk
 from spacy.cli import download
 from functools import partial
 
@@ -146,12 +147,16 @@ def perturb_dataset(dataset_path: str, method: str, set_type: str, language: str
     nlp = None
 
     if 'linear' in method or 'hop' in method:
-        if language != 'hebrew':
-            nlp, language_code = _load_model(language)
-        elif language == 'hebrew': # Edge case for Hebrew where we use huggingface model.
+        if language == 'hebrew':
             load_hebrew_hf_model()
             nlp = None
             language_code = _LANGUAGE_TO_LANGUAGE_CODE[language]
+        elif language == 'turkish':
+            nlp = "nlpturk" # Pipeline used directly on word
+            language_code = _LANGUAGE_TO_LANGUAGE_CODE[language]
+        else:
+            nlp, language_code = _load_model(language)
+
     method_path = os.path.join(DATA_PATH, 'multilang', language, method)
     print(f"method_path: {method_path}")
     print(f"set_type: {set_type}")
@@ -289,8 +294,6 @@ def _load_model(language:str):
         name = "fi_core_news_md"
     elif language == 'korean':
         name = "ko_core_news_sm"
-    elif language == 'turkish':
-        name = "tr_core_news_lg"
 
     try:
         nlp = spacy.load(name)
@@ -623,13 +626,19 @@ def _apply_no_hop(sentence:str, nlp:spacy.Language):
     punct = None
     if tokens[-1] in string.punctuation:
         punct = tokens.pop()
-
-    doc = nlp(" ".join(tokens))
+    if nlp == 'nlpturk':
+        doc = nlpturk(" ".join(tokens))
+        language_code = "tr"
+    else:
+        doc = nlp(" ".join(tokens))
+        language_code = nlp.lang
     modified_tokens = []
     change = 0
-    language_code = nlp.lang
     for token in doc:
-        pos = token.pos_
+        if nlp == 'nlpturk':
+            pos = token.pos
+        else:
+            pos = token.pos_
         if token.text in {'unk', '<', '>'}:
             modified_tokens.append(token.text)
         elif pos == 'VERB':
